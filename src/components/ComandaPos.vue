@@ -4,7 +4,15 @@
     <section class="card">
       <h2>🍔 Menú — toca para agregar</h2>
 
-      <div class="food-card" v-for="p in menu" :key="p.id" @click="agregar(p)">
+      <!-- Persona A:
+           Cada tarjeta del menú dispara @click="agregar(p)",
+           que añade el producto al pedido o incrementa su cantidad -->
+      <div
+        class="food-card"
+        v-for="p in menu"
+        :key="p.id"
+        @click="agregar(p)"
+      >
         <div class="emoji">{{ p.emoji }}</div>
         <div class="nom">{{ p.nombre }}</div>
         <div class="pre">${{ p.precio.toLocaleString('es-CL') }}</div>
@@ -34,27 +42,87 @@
               </div>
 
               <div class="qty">
-                <button class="mini" type="button" @click="disminuir(item.id)">−</button>
+                <!-- B · Req 4: Disminuir cantidad -->
+                <button
+                  class="mini"
+                  type="button"
+                  @click="disminuir(item.id)"
+                >
+                  −
+                </button>
+
                 <span>x{{ item.cantidad }}</span>
-                <button class="mini" type="button" @click="aumentar(item.id)">+</button>
-                <button class="mini del" type="button" @click.stop="eliminar(item.id)">✕</button>
+
+                <!-- B · Req 4: Aumentar cantidad -->
+                <button
+                  class="mini"
+                  type="button"
+                  @click="aumentar(item.id)"
+                >
+                  +
+                </button>
+
+                <!-- B · Req 5: Eliminar línea (con .stop para no disparar el clic de la fila) -->
+                <button
+                  class="mini del"
+                  type="button"
+                  @click.stop="eliminar(item.id)"
+                >
+                  ✕
+                </button>
               </div>
             </div>
           </div>
 
           <!-- B · Req 6: Nombre del cliente con v-model -->
           <label for="cliente">Cliente</label>
-          <input id="cliente" type="text" v-model="cliente" placeholder="Nombre del cliente" />
+          <input
+            id="cliente"
+            type="text"
+            v-model="cliente"
+            placeholder="Nombre del cliente"
+          />
 
-          <!-- A · Req 2: TOTAL como valor derivado (computed) -->
-          <div class="total">
-            TOTAL: ${{ total.toLocaleString('es-CL') }}
+          <!-- ========== EXTRA NIVEL 3 — NOTA PARA LA COCINA (Persona A) ========== -->
+          <label for="nota">Nota para la cocina</label>
+          <!-- v-model para el texto actual + @keydown.enter para agregar con Enter -->
+          <input
+            id="nota"
+            type="text"
+            v-model="notaActual"
+            placeholder="Ej: sin cebolla"
+            @keydown.enter.prevent="agregarNota"
+          />
+
+          <!-- Lista de notas visibles, se llenan al presionar Enter -->
+          <div v-if="notas.length">
+            <span class="pill" v-for="(n, i) in notas" :key="i">
+              {{ n }}
+            </span>
           </div>
 
+          <!-- A · Req 2: TOTAL del pedido como valor derivado (computed) -->
+          <div class="total">
+            TOTAL: ${{ totalConDescuento.toLocaleString('es-CL') }}
+          </div>
+
+          <!-- ========== EXTRA NIVEL 3 — DESCUENTO 10% (Persona A) ========== -->
+          <!-- .once: el descuento solo se puede aplicar una vez por pedido -->
+          <button
+            class="btn"
+            type="button"
+            @click.once="aplicarDescuento"
+            :disabled="descuentoAplicado"
+            style="margin-top: .5rem; margin-right: .5rem;"
+          >
+            Aplicar descuento 10%
+          </button>
+
+          <!-- Botón principal de cobro -->
           <button type="submit" class="btn">Cobrar y cerrar</button>
         </form>
 
-        <!-- Mensaje de cobro (B) -->
+        <!-- Mensaje de cobro (Persona B) -->
         <p v-if="mensaje" class="pill">{{ mensaje }}</p>
       </div>
     </section>
@@ -71,11 +139,11 @@ export default {
     // Menú del food truck — cada producto tiene id, emoji, nombre y precio.
     const menu = ref([
       { id: 1, emoji: '🍔', nombre: 'Hamburguesa', precio: 5500 },
-      { id: 2, emoji: '🌭', nombre: 'Completo', precio: 3200 },
-      { id: 3, emoji: '🍕', nombre: 'Pizza', precio: 6800 },
-      { id: 4, emoji: '🥤', nombre: 'Bebida', precio: 1500 },
-      { id: 5, emoji: '🍟', nombre: 'Papas', precio: 2900 },
-      { id: 6, emoji: '🌮', nombre: 'Taco', precio: 4100 },
+      { id: 2, emoji: '🌭', nombre: 'Completo',     precio: 3200 },
+      { id: 3, emoji: '🍕', nombre: 'Pizza',        precio: 6800 },
+      { id: 4, emoji: '🥤', nombre: 'Bebida',       precio: 1500 },
+      { id: 5, emoji: '🍟', nombre: 'Papas',        precio: 2900 },
+      { id: 6, emoji: '🌮', nombre: 'Taco',         precio: 4100 },
     ])
 
     // ===================== ESTADO DEL PEDIDO (A + B) =====================
@@ -89,6 +157,16 @@ export default {
     // Mensaje que se muestra al cobrar, por ejemplo:
     // "✅ Pedido de Dani cobrado: $12.500" (B)
     const mensaje = ref('')
+
+    // ===================== EXTRA NIVEL 3 — NOTAS DE COCINA (Persona A) =====================
+    // Texto actual de la nota que se está escribiendo
+    const notaActual = ref('')
+    // Lista de notas acumuladas para la cocina
+    const notas = ref([])
+
+    // ===================== EXTRA NIVEL 3 — DESCUENTO 10% (Persona A) =====================
+    // Flag para saber si ya se aplicó el descuento en este pedido
+    const descuentoAplicado = ref(false)
 
     // ===================== MÉTODOS — PERSONA A (AGREGAR Y TOTAL) =====================
 
@@ -120,6 +198,15 @@ export default {
       )
     })
 
+    // Valor derivado que considera el descuento si ya fue aplicado.
+    // Si descuentoAplicado es true, totalConDescuento es total * 0.9.
+    const totalConDescuento = computed(() => {
+      if (!descuentoAplicado.value) {
+        return total.value
+      }
+      return Math.round(total.value * 0.9) // 10% menos, redondeado
+    })
+
     // ===================== MÉTODOS — PERSONA B (EDICIÓN DEL PEDIDO) =====================
 
     // B · Req 4: Aumentar cantidad de una línea del ticket.
@@ -148,18 +235,44 @@ export default {
       pedido.value = pedido.value.filter(p => p.id !== id)
     }
 
+    // ===================== EXTRA NIVEL 3 — MÉTODOS DE NOTA Y DESCUENTO (Persona A) =====================
+
+    // Nota rápida con Enter:
+    // Se agrega la notaActual a la lista "notas" y se limpia el input.
+    const agregarNota = () => {
+      const texto = notaActual.value.trim()
+      if (!texto) return
+      notas.value.push(texto)
+      notaActual.value = ''
+    }
+
+    // Descuento por tecla/botón:
+    // Marca descuentoAplicado como true. El cálculo real se refleja en totalConDescuento.
+    // El .once en el template asegura que este método se ejecute solo una vez por pedido.
+    const aplicarDescuento = () => {
+      if (descuentoAplicado.value) return
+      descuentoAplicado.value = true
+    }
+
+    // ===================== MÉTODO — PERSONA B (COBRAR) =====================
+
     // B · Req 7: Cobrar sin recargar (@submit.prevent).
     // - Si no hay productos, muestra mensaje de error.
-    // - Si hay pedido, arma mensaje con nombre de cliente y total.
-    // - Vacía el ticket al cobrar.
+    // - Si hay pedido, arma mensaje con nombre de cliente y total (con descuento si aplica).
+    // - Vacía el ticket al cobrar y reinicia notas y descuento.
     const cobrar = () => {
       if (pedido.value.length === 0) {
         mensaje.value = 'No hay productos para cobrar'
         return
       }
 
-      mensaje.value = `✅ Pedido de ${cliente.value || 'Cliente sin nombre'} cobrado: $${total.value.toLocaleString('es-CL')}`
+      mensaje.value = `✅ Pedido de ${cliente.value || 'Cliente sin nombre'} cobrado: $${totalConDescuento.value.toLocaleString('es-CL')}`
+
+      // Reseteamos el estado del pedido y extras
       pedido.value = []
+      notas.value = []
+      notaActual.value = ''
+      descuentoAplicado.value = false
     }
 
     // Todo lo que se usa en el template se retorna aquí.
@@ -168,11 +281,17 @@ export default {
       pedido,
       cliente,
       mensaje,
+      notaActual,
+      notas,
+      descuentoAplicado,
       agregar,
       total,
+      totalConDescuento,
       aumentar,
       disminuir,
       eliminar,
+      agregarNota,
+      aplicarDescuento,
       cobrar,
     }
   }
@@ -209,7 +328,7 @@ export default {
   padding: 1.5rem 1.75rem;
 }
 
-.card>h2 {
+.card > h2 {
   margin-top: 0;
   color: var(--primary);
   border-bottom: 1px solid var(--line);
@@ -346,6 +465,7 @@ input:focus {
   font-weight: 700;
   cursor: pointer;
   font-size: .95rem;
+  margin-top: .4rem;  
 }
 
 .pill {
@@ -356,5 +476,6 @@ input:focus {
   border-radius: 999px;
   font-size: .8rem;
   margin: .15rem;
+  margin-top: .4rem;  
 }
 </style>

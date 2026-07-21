@@ -1,62 +1,6 @@
-<script>
-import { ref, computed } from 'vue'
-
-export default {
-  name: 'ComandaPos',
-  setup() {
-    // ---------- DATOS (ya listos, NO los cambies) ----------
-    const menu = ref([
-      { id: 1, emoji: '🍔', nombre: 'Hamburguesa', precio: 5500 },
-      { id: 2, emoji: '🌭', nombre: 'Completo', precio: 3200 },
-      { id: 3, emoji: '🍕', nombre: 'Pizza', precio: 6800 },
-      { id: 4, emoji: '🥤', nombre: 'Bebida', precio: 1500 },
-      { id: 5, emoji: '🍟', nombre: 'Papas', precio: 2900 },
-      { id: 6, emoji: '🌮', nombre: 'Taco', precio: 4100 },
-    ])
-    
-    const pedido = ref([])
-
-  const cliente = ref('')
-  const mensaje = ref('')
-
-  const agregar = (producto) => {
-    const existente = pedido.value.find(item => item.id === producto.id)
-    if (existente) {
-      existente.cantidad += 1
-    } else {
-      pedido.value.push({
-        id: producto.id,
-        emoji: producto.emoji,
-        nombre: producto.nombre,
-        precio: producto.precio,
-        cantidad: 1,
-      })
-    }
-  }
-
-  const total = computed(() => {
-    return pedido.value.reduce(
-      (suma, item) => suma + item.precio * item.cantidad,
-      0
-    )
-  })
-
-  return {
-    menu,
-    pedido,
-    cliente,
-    mensaje,
-    agregar,
-    total,
-  }
-}
-}
-</script>
-
 <template>
   <div class="pos">
-
-    <!-- ================= ZONA MENÚ (EJEMPLO YA HECHO) ================= -->
+    <!-- ================ ZONA MENÚ — PERSONA A (AGREGAR) ================ -->
     <section class="card">
       <h2>🍔 Menú — toca para agregar</h2>
 
@@ -67,59 +11,173 @@ export default {
       </div>
     </section>
 
-    <!-- ================= ZONA TICKET (LA CONSTRUYEN USTEDES) ================= -->
+    <!-- ================ ZONA TICKET — A + B (PEDIDO COMPLETO) ================ -->
     <section class="card">
       <h2>🧾 Ticket del pedido</h2>
 
-      <!--
-        🔨 CONSTRUYAN USTEDES TODO ESTE PANEL. Guíense por el menú de arriba (v-for)
-           y por los Requisitos 1 a 7 de las instrucciones. Debe tener:
-
-           [B · Req 6] Un input para el nombre del cliente     -> v-model="cliente"
-           [A · Req 3] Un mensaje de "Aún no hay productos"    -> v-if cuando el pedido esté vacío
-           [A · Req 1] La lista del pedido                     -> v-for sobre "pedido"
-                       mostrando emoji, nombre y cantidad de cada item
-           [B · Req 4] Botones  −  y  +  en cada línea         -> @click a disminuir(id) / aumentar(id)
-           [B · Req 5] Un botón  ✕  para eliminar la línea     -> @click.stop a eliminar(id)  (¡ojo el .stop!)
-           [A · Req 2] El TOTAL del pedido                     -> {{ total }}  (un computed)
-           [B · Req 7] Un <form> con botón "Cobrar y cerrar"   -> @submit.prevent="cobrar"
-
-        Pueden usar las clases de CSS ya listas (ver la sección <style> más abajo):
-        .ticket, .item, .qty, .mini, .mini.del, .total, .vacio, .btn
-      -->
       <div class="ticket">
         <h4>Pedido</h4>
 
-        <div v-if="pedido.length === 0" class="vacio">
-          Aún no hay productos
-        </div>
+        <!-- B · Req 7: Cobrar sin recargar (@submit.prevent) -->
+        <form @submit.prevent="cobrar">
+          <!-- A · Req 3: Estado vacío del ticket -->
+          <div v-if="pedido.length === 0" class="vacio">
+            Aún no hay productos
+          </div>
 
-        <div v-else>
-          <div class="item" v-for="item in pedido" :key="item.id">
-            <div>
-              <span>{{ item.emoji }}</span>
-              <span> {{ item.nombre }} </span>
-            </div>
+          <!-- A · Req 1 + B · Req 4, 5: Lista del pedido editable -->
+          <div v-else>
+            <div class="item" v-for="item in pedido" :key="item.id">
+              <div>
+                <span>{{ item.emoji }}</span>
+                <span> {{ item.nombre }} </span>
+              </div>
 
-            <div class="qty">
-              <!-- Botones +, -, ✕ los añadiremos en el rol B -->
-              <span>x{{ item.cantidad }}</span>
+              <div class="qty">
+                <button class="mini" type="button" @click="disminuir(item.id)">−</button>
+                <span>x{{ item.cantidad }}</span>
+                <button class="mini" type="button" @click="aumentar(item.id)">+</button>
+                <button class="mini del" type="button" @click.stop="eliminar(item.id)">✕</button>
+              </div>
             </div>
           </div>
-        </div>
 
-        <label for="cliente">Cliente</label>
-        <input id="cliente" type="text" v-model="cliente" placeholder="Nombre del cliente" />
+          <!-- B · Req 6: Nombre del cliente con v-model -->
+          <label for="cliente">Cliente</label>
+          <input id="cliente" type="text" v-model="cliente" placeholder="Nombre del cliente" />
 
-        <div class="total">
-          TOTAL: ${{ total.toLocaleString('es-CL') }}
-        </div>
+          <!-- A · Req 2: TOTAL como valor derivado (computed) -->
+          <div class="total">
+            TOTAL: ${{ total.toLocaleString('es-CL') }}
+          </div>
 
+          <button type="submit" class="btn">Cobrar y cerrar</button>
+        </form>
+
+        <!-- Mensaje de cobro (B) -->
+        <p v-if="mensaje" class="pill">{{ mensaje }}</p>
       </div>
     </section>
-
   </div>
 </template>
+
+<script>
+import { ref, computed } from 'vue'
+
+export default {
+  name: 'ComandaPos',
+  setup() {
+    // ===================== DATOS FIJOS DEL MENÚ (NO SE TOCAN) =====================
+    // Menú del food truck — cada producto tiene id, emoji, nombre y precio.
+    const menu = ref([
+      { id: 1, emoji: '🍔', nombre: 'Hamburguesa', precio: 5500 },
+      { id: 2, emoji: '🌭', nombre: 'Completo', precio: 3200 },
+      { id: 3, emoji: '🍕', nombre: 'Pizza', precio: 6800 },
+      { id: 4, emoji: '🥤', nombre: 'Bebida', precio: 1500 },
+      { id: 5, emoji: '🍟', nombre: 'Papas', precio: 2900 },
+      { id: 6, emoji: '🌮', nombre: 'Taco', precio: 4100 },
+    ])
+
+    // ===================== ESTADO DEL PEDIDO (A + B) =====================
+    // El ticket empieza vacío; cada item tendrá:
+    // { id, emoji, nombre, precio, cantidad }
+    const pedido = ref([])
+
+    // Nombre del cliente que escribe Dani en la comandera (B · v-model)
+    const cliente = ref('')
+
+    // Mensaje que se muestra al cobrar, por ejemplo:
+    // "✅ Pedido de Dani cobrado: $12.500" (B)
+    const mensaje = ref('')
+
+    // ===================== MÉTODOS — PERSONA A (AGREGAR Y TOTAL) =====================
+
+    // A · Req 1: Agregar productos al ticket.
+    // - Si el producto ya está en "pedido", se suma 1 a su cantidad.
+    // - Si no está, se agrega con cantidad = 1.
+    const agregar = (producto) => {
+      const existente = pedido.value.find(item => item.id === producto.id)
+
+      if (existente) {
+        existente.cantidad += 1
+      } else {
+        pedido.value.push({
+          id: producto.id,
+          emoji: producto.emoji,
+          nombre: producto.nombre,
+          precio: producto.precio,
+          cantidad: 1,
+        })
+      }
+    }
+
+    // A · Req 2: TOTAL del pedido como valor derivado (computed).
+    // No se guarda a mano; se calcula siempre desde "pedido".
+    const total = computed(() => {
+      return pedido.value.reduce(
+        (suma, item) => suma + item.precio * item.cantidad,
+        0
+      )
+    })
+
+    // ===================== MÉTODOS — PERSONA B (EDICIÓN DEL PEDIDO) =====================
+
+    // B · Req 4: Aumentar cantidad de una línea del ticket.
+    const aumentar = (id) => {
+      const item = pedido.value.find(p => p.id === id)
+      if (item) {
+        item.cantidad += 1
+      }
+    }
+
+    // B · Req 4: Disminuir cantidad.
+    // Si la cantidad llega a 0, la línea se elimina del pedido (Req 4).
+    const disminuir = (id) => {
+      const item = pedido.value.find(p => p.id === id)
+      if (!item) return
+
+      item.cantidad -= 1
+
+      if (item.cantidad === 0) {
+        pedido.value = pedido.value.filter(p => p.id !== id)
+      }
+    }
+
+    // B · Req 5: Eliminar una línea completa del ticket (botón ✕).
+    const eliminar = (id) => {
+      pedido.value = pedido.value.filter(p => p.id !== id)
+    }
+
+    // B · Req 7: Cobrar sin recargar (@submit.prevent).
+    // - Si no hay productos, muestra mensaje de error.
+    // - Si hay pedido, arma mensaje con nombre de cliente y total.
+    // - Vacía el ticket al cobrar.
+    const cobrar = () => {
+      if (pedido.value.length === 0) {
+        mensaje.value = 'No hay productos para cobrar'
+        return
+      }
+
+      mensaje.value = `✅ Pedido de ${cliente.value || 'Cliente sin nombre'} cobrado: $${total.value.toLocaleString('es-CL')}`
+      pedido.value = []
+    }
+
+    // Todo lo que se usa en el template se retorna aquí.
+    return {
+      menu,
+      pedido,
+      cliente,
+      mensaje,
+      agregar,
+      total,
+      aumentar,
+      disminuir,
+      eliminar,
+      cobrar,
+    }
+  }
+}
+</script>
 
 <style scoped>
 /* Estilos del componente (ya listos). Las variables viven en .pos y las heredan los hijos. */
@@ -270,6 +328,7 @@ input[type=text] {
   font-family: inherit;
   background: #fff;
   color: #1e293b;
+  box-sizing: border-box;
 }
 
 input:focus {

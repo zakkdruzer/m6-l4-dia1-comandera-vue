@@ -1,7 +1,7 @@
 <script setup>
-import HelloWorld from './components/HelloWorld.vue'
+import ComandaPos from './components/ComandaPos.vue';
 </script>
 
 <template>
-  <HelloWorld />
+  <ComandaPos />
 </template>
